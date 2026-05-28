@@ -68,6 +68,21 @@ public class AHStorage {
                 .collect(Collectors.toList());
     }
 
+    private static final Object BUY_LOCK = new Object();
+
+    public static Object getBuyLock() {
+        return BUY_LOCK;
+    }
+
+    public static synchronized boolean removeListing(UUID seller, long timestamp) {
+        List<AHListing> sellerListings = loadListings(seller);
+        boolean removed = sellerListings.removeIf(l -> l.timestamp == timestamp && l.seller.equals(seller));
+        if (removed) {
+            saveListings(seller, sellerListings);
+        }
+        return removed;
+    }
+
     public static List<AHListing> getExpiredListings(List<AHListing> all) {
         long now = System.currentTimeMillis();
         return all.stream()

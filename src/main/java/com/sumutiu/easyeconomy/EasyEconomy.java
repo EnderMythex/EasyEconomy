@@ -2,6 +2,7 @@ package com.sumutiu.easyeconomy;
 
 import com.sumutiu.easyeconomy.commands.*;
 import com.sumutiu.easyeconomy.storage.BankStorage;
+import com.sumutiu.easyeconomy.storage.NameCache;
 import eu.pb4.placeholders.api.PlaceholderResult;
 import eu.pb4.placeholders.api.Placeholders;
 import net.fabricmc.api.ModInitializer;
@@ -39,7 +40,7 @@ public class EasyEconomy implements ModInitializer {
 			AH_FOLDER = new File("mods/EasyEconomy_Seed_" + Long.toUnsignedString(seed) + "/AH");
 
 			if (initPlugin()) {
-				// Register player balance placeholder
+				NameCache.load();
 				registerBalancePlaceholder();
 				EasyEconomyInitialized = true;
 			} else {
@@ -52,7 +53,9 @@ public class EasyEconomy implements ModInitializer {
 			WithdrawCommand.register(dispatcher);
 			BankCommand.register(dispatcher);
 			PayCommand.register(dispatcher);
-			AHCommand.register(dispatcher);
+			ShopCommand.register(dispatcher);
+			ShopAdminCommand.register(dispatcher);
+			LeaderboardCommand.register(dispatcher);
 		});
 
 		// Player join
@@ -67,6 +70,8 @@ public class EasyEconomy implements ModInitializer {
 			}
 
 			UUID uuid = player.getUUID();
+
+			NameCache.put(uuid, player.getName().getString());
 
 			try {
 				File playerFile = BankStorage.getPlayerFile(uuid);

@@ -21,7 +21,7 @@ public class AHScreenFactory {
         List<AHStorage.AHListing> allActive = AHStorageHelper.getAllActiveListings();
 
         if (allActive.isEmpty()) {
-            EasyEconomyMessages.PrivateMessage(player, AH_NO_ACTIVE_LISTING);
+            EasyEconomyMessages.PrivateMessage(player, SHOP_NO_ACTIVE_LISTING);
             return;
         }
 
@@ -29,7 +29,7 @@ public class AHScreenFactory {
 
             @Override
             public @NonNull Component getDisplayName() {
-                return Component.literal("Auction House");
+                return Component.literal("Shop");
             }
 
             @Override
@@ -40,6 +40,49 @@ public class AHScreenFactory {
                         allActive,
                         playerEntity
                 );
+            }
+        };
+
+        player.openMenu(factory);
+    }
+
+    public static void openWithFilter(ServerPlayer player, String itemId) {
+        List<AHStorage.AHListing> allActive = AHStorageHelper.getAllActiveListings();
+
+        if (allActive.isEmpty()) {
+            EasyEconomyMessages.PrivateMessage(player, SHOP_NO_ACTIVE_LISTING);
+            return;
+        }
+
+        List<AHStorage.AHListing> filtered = new java.util.ArrayList<>();
+        for (AHStorage.AHListing l : allActive) {
+            if (l.itemId != null && l.itemId.equals(itemId)) {
+                filtered.add(l);
+            }
+        }
+
+        if (filtered.isEmpty()) {
+            EasyEconomyMessages.PrivateMessage(player, SHOP_LIST_NONE);
+            return;
+        }
+
+        MenuProvider factory = new MenuProvider() {
+
+            @Override
+            public @NonNull Component getDisplayName() {
+                return Component.literal("Shop");
+            }
+
+            @Override
+            public AbstractContainerMenu createMenu(int syncId, @NonNull Inventory playerInventory, @NonNull Player playerEntity) {
+                AHScreenHandler handler = new AHScreenHandler(
+                        syncId,
+                        new SimpleContainer(AHScreenHandler.SIZE),
+                        filtered,
+                        playerEntity
+                );
+                handler.setFilter(itemId);
+                return handler;
             }
         };
 

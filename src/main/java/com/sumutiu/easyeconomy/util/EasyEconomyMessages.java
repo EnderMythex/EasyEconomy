@@ -54,6 +54,10 @@ public class EasyEconomyMessages {
     public static final String BANK_DEPOSIT_FAILED_PRIVATE = "An error occurred while depositing. Please contact an admin.";
     public static final String BANK_PAY_NEGATIVE = "The quantity must be positive.";
 
+    public static final String LEADERBOARD_HEADER = "--- Rich List (Top %d) ---";
+    public static final String LEADERBOARD_ENTRY = "#%d - %s: %d diamonds";
+    public static final String LEADERBOARD_EMPTY = "No players found.";
+
     // ----------------------------
     // Bank - Welcome / Notifications
     // ----------------------------
@@ -85,19 +89,27 @@ public class EasyEconomyMessages {
     public static final String PAY_FAILED_ERROR = "Failed to process payment from %s to %s. Error: %s.";
 
     // ----------------------------
-    // AH - General
+    // Shop - General
     // ----------------------------
-    public static final String AH_SELL_EMPTY = "You are not holding any item.";
-    public static final String AH_SELL_NO_PRICE = "Price must be greater than 0.";
-    public static final String AH_SELL_CONFIRMATION = "Listed %d of %s on AH for %d diamonds.";
-    public static final String AH_BUY_ERROR = "Could not retrieve item from listing.";
-    public static final String AH_BUY_CONFIRMATION= "Bought %d of %s for %d diamonds from %s.";
-    public static final String AH_WITHDRAW_ERROR = "Failed to withdraw balance. Try again.";
-    public static final String AH_BUY_NO_MONEY = "Not enough diamonds in your deposit to purchase this item.";
-    public static final String AH_BUY_NO_SPACE = "Not enough inventory space to purchase this item.";
-    public static final String AH_CLAIM_NO_SPACE = "Not enough inventory space to claim this item.";
-    public static final String AH_CLAIM_EXPIRED = "Claimed expired listing: %d of %s.";
-    public static final String AH_NO_ACTIVE_LISTING = "There are currently no active AH listings.";
+    public static final String SHOP_SELL_EMPTY = "You are not holding any item.";
+    public static final String SHOP_SELL_NO_PRICE = "Price must be greater than 0.";
+    public static final String SHOP_SELL_CONFIRMATION = "Listed %d of %s on the Shop for %d diamonds.";
+    public static final String SHOP_BUY_ERROR = "Could not retrieve item from listing.";
+    public static final String SHOP_BUY_CONFIRMATION = "Bought %d of %s for %d diamonds from %s.";
+    public static final String SHOP_WITHDRAW_ERROR = "Failed to withdraw balance. Try again.";
+    public static final String SHOP_BUY_NO_MONEY = "Not enough diamonds in your deposit to purchase this item.";
+    public static final String SHOP_BUY_NO_SPACE = "Not enough inventory space to purchase this item.";
+    public static final String SHOP_NO_ACTIVE_LISTING = "There are currently no active shop listings.";
+    public static final String SHOP_LIST_EMPTY_HAND = "You are not holding any item. Hold an item to search the shop.";
+    public static final String SHOP_LIST_NONE = "No listings found for this item.";
+
+    // ----------------------------
+    // Shop Admin
+    // ----------------------------
+    public static final String SHOPADMIN_SET_SUCCESS = "Set balance of %s to %d diamonds.";
+    public static final String SHOPADMIN_LIST_HEADER = "--- All Players (%d) ---";
+    public static final String SHOPADMIN_LIST_ENTRY = "%s: %d diamonds";
+    public static final String SHOPADMIN_LIST_EMPTY = "No players found.";
 
     // ----------------------------
     // AH - Logging / Errors

@@ -6,8 +6,7 @@ import com.google.gson.GsonBuilder;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.sumutiu.easyeconomy.EasyEconomy.STORAGE_FOLDER;
@@ -85,9 +84,41 @@ public class BankStorage {
         return true;
     }
 
+    public static synchronized void setBalance(UUID uuid, long amount) {
+        if (amount < 0) amount = 0;
+        balanceCache.put(uuid, amount);
+        saveToFile(uuid, amount);
+        Logger(0, "Set balance of " + uuid + " to " + amount + ".");
+    }
+
     // Optionally clear cache when player leaves
     public static synchronized void unloadPlayer(UUID uuid) {
         balanceCache.remove(uuid);
+    }
+
+    public static synchronized List<Map.Entry<UUID, Long>> getTopBalances(int count) {
+        File folder = STORAGE_FOLDER;
+        if (!folder.exists()) return Collections.emptyList();
+
+        File[] files = folder.listFiles((f) -> f.isFile() && f.getName().toLowerCase().endsWith(".json"));
+        if (files == null) return Collections.emptyList();
+
+        Map<UUID, Long> allBalances = new HashMap<>();
+        for (File f : files) {
+            String name = f.getName();
+            int dot = name.lastIndexOf('.');
+            if (dot <= 0) continue;
+            try {
+                UUID uuid = UUID.fromString(name.substring(0, dot));
+                allBalances.put(uuid, getBalance(uuid));
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        List<Map.Entry<UUID, Long>> sorted = new ArrayList<>(allBalances.entrySet());
+        sorted.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+
+        if (sorted.size() <= count) return sorted;
+        return sorted.subList(0, count);
     }
 
     // ----------------------------

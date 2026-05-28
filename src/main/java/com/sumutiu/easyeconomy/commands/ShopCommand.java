@@ -3,7 +3,6 @@ package com.sumutiu.easyeconomy.commands;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.sumutiu.easyeconomy.storage.AHStorage;
-import com.sumutiu.easyeconomy.util.AHExpiredScreenFactory;
 import com.sumutiu.easyeconomy.util.AHScreenFactory;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.nbt.NbtOps;
@@ -19,12 +18,11 @@ import static com.sumutiu.easyeconomy.util.EasyEconomyMessages.*;
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
-public class AHCommand {
+public class ShopCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(literal("ah")
+        dispatcher.register(literal("shop")
                 .executes(ctx -> {
-
                     CommandSourceStack source = ctx.getSource();
                     if (!(source.getEntity() instanceof ServerPlayer player)) {
                         Logger(1, PLAYER_ONLY_COMMAND);
@@ -42,7 +40,6 @@ public class AHCommand {
                 .then(literal("sell")
                         .then(argument("price", IntegerArgumentType.integer(1))
                                 .executes(ctx -> {
-
                                     CommandSourceStack source = ctx.getSource();
                                     if (!(source.getEntity() instanceof ServerPlayer player)) {
                                         Logger(1, PLAYER_ONLY_COMMAND);
@@ -59,9 +56,8 @@ public class AHCommand {
                                 })
                         )
                 )
-                .then(literal("expired")
+                .then(literal("list")
                         .executes(ctx -> {
-
                             CommandSourceStack source = ctx.getSource();
                             if (!(source.getEntity() instanceof ServerPlayer player)) {
                                 Logger(1, PLAYER_ONLY_COMMAND);
@@ -69,8 +65,7 @@ public class AHCommand {
                             }
 
                             if (EasyEconomyInitialized) {
-                                AHExpiredScreenFactory.open(player);
-                                return SINGLE_SUCCESS;
+                                return listItem(player);
                             } else {
                                 PrivateMessage(player, MOD_INIT_NOT_READY);
                                 return 0;
@@ -81,22 +76,19 @@ public class AHCommand {
     }
 
     private static int sellItem(ServerPlayer player, long price) {
-
         ItemStack held = player.getMainHandItem();
 
         if (held.isEmpty()) {
-            PrivateMessage(player, AH_SELL_EMPTY);
+            PrivateMessage(player, SHOP_SELL_EMPTY);
             return 0;
         }
 
         if (price <= 0) {
-            PrivateMessage(player, AH_SELL_NO_PRICE);
+            PrivateMessage(player, SHOP_SELL_NO_PRICE);
             return 0;
         }
 
         int qty = held.getCount();
-
-        // Item info BEFORE modifying stack
         String itemName = held.getHoverName().getString();
         String itemId = BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
         RegistryOps<Tag> ops =
@@ -119,10 +111,23 @@ public class AHCommand {
         listings.add(listing);
         AHStorage.saveListings(player.getUUID(), listings);
 
-        held.shrink(qty); // remove all items from hand
+        held.shrink(qty);
 
-        PrivateMessage(player, String.format(AH_SELL_CONFIRMATION, qty, itemName, price));
+        PrivateMessage(player, String.format(SHOP_SELL_CONFIRMATION, qty, itemName, price));
 
+        return SINGLE_SUCCESS;
+    }
+
+    private static int listItem(ServerPlayer player) {
+        ItemStack held = player.getMainHandItem();
+
+        if (held.isEmpty()) {
+            PrivateMessage(player, SHOP_LIST_EMPTY_HAND);
+            return 0;
+        }
+
+        String itemId = BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
+        AHScreenFactory.openWithFilter(player, itemId);
         return SINGLE_SUCCESS;
     }
 }

@@ -30,12 +30,14 @@ public class AHScreenHandler extends AbstractContainerMenu {
     public static final int ITEMS_PER_PAGE = 45;
 
     private final Container inventory;
-    private final List<AHStorage.AHListing> listings;
+    private List<AHStorage.AHListing> listings;
     private final Player player;
 
     private boolean inConfirmation = false;
     private int confirmSlot = -1;
     private int currentPage = 0;
+
+    private String filterItemId = null;
 
     public AHScreenHandler(int syncId, Container inventory, List<AHStorage.AHListing> listings, Player player) {
         super(MenuType.GENERIC_9x6, syncId);
@@ -43,7 +45,6 @@ public class AHScreenHandler extends AbstractContainerMenu {
         this.listings = listings;
         this.player = player;
 
-        // ---------------- Auction House Slots ----------------
         for (int i = 0; i < SIZE; i++) {
             this.addSlot(new ClickableSlot(inventory, i, 8 + (i % COLUMNS) * 18, 18 + (i / COLUMNS) * 18) {
                 @Override
@@ -53,18 +54,17 @@ public class AHScreenHandler extends AbstractContainerMenu {
 
                 @Override
                 public boolean mayPickup(@NonNull Player player) {
-                    onClick(player); // Trigger click server-side
-                    return false; // Prevent pickup
+                    onClick(player);
+                    return false;
                 }
 
                 @Override
                 public boolean mayPlace(@NonNull ItemStack stack) {
-                    return false; // Prevent placing items
+                    return false;
                 }
             });
         }
 
-        // ---------------- Player Inventory ----------------
         int playerInvY = 140;
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
@@ -81,11 +81,24 @@ public class AHScreenHandler extends AbstractContainerMenu {
         drawListings();
     }
 
-    // ---------------- CLICK HANDLER ----------------
+    public void setFilter(String itemId) {
+        this.filterItemId = itemId;
+    }
+
+    private List<AHStorage.AHListing> getFilteredListings() {
+        if (filterItemId == null) return listings;
+        List<AHStorage.AHListing> filtered = new ArrayList<>();
+        for (AHStorage.AHListing l : listings) {
+            if (l.itemId != null && l.itemId.equals(filterItemId)) {
+                filtered.add(l);
+            }
+        }
+        return filtered;
+    }
+
     private void handleListingClick(Player player, int slotIndex) {
         if (!(player instanceof net.minecraft.server.level.ServerPlayer serverPlayer)) return;
 
-        // ---- Confirmation Screen ----
         if (inConfirmation) {
             if (isConfirmSlot(slotIndex)) {
                 buyListing(serverPlayer);
@@ -100,88 +113,112 @@ public class AHScreenHandler extends AbstractContainerMenu {
             return;
         }
 
-        // ---- Navigation ----
         if (slotIndex == 45 && currentPage > 0) {
             currentPage--;
             drawListings();
             return;
         }
 
-        if (slotIndex == 53 && (currentPage + 1) * ITEMS_PER_PAGE < listings.size()) {
+        if (slotIndex == 53 && (currentPage + 1) * ITEMS_PER_PAGE < getFilteredListings().size()) {
             currentPage++;
             drawListings();
             return;
         }
 
-        // ---- Listing Click ----
+        if (slotIndex == 48) {
+            refreshListings();
+            return;
+        }
+
         int listingIndex = currentPage * ITEMS_PER_PAGE + slotIndex;
-        if (slotIndex >= 0 && slotIndex < ITEMS_PER_PAGE && listingIndex < listings.size()) {
+        List<AHStorage.AHListing> filtered = getFilteredListings();
+        if (slotIndex >= 0 && slotIndex < ITEMS_PER_PAGE && listingIndex < filtered.size()) {
             inConfirmation = true;
             confirmSlot = listingIndex;
             drawConfirmationScreen();
         }
     }
 
-    private void buyListing(net.minecraft.server.level.ServerPlayer serverPlayer) {
-        inConfirmation = false;
-
-        AHStorage.AHListing listing = listings.get(confirmSlot);
-        ItemStack purchased = AHStorageHelper.fromListing(listing, serverPlayer.registryAccess());
-
-        if (purchased == null || purchased.isEmpty()) {
-            PrivateMessage(serverPlayer, AH_BUY_ERROR);
-            drawListings();
-            confirmSlot = -1;
-            return;
-        }
-
-        if (InventoryUtil.noInventorySpace(serverPlayer, purchased)) {
-            PrivateMessage(serverPlayer, AH_BUY_NO_SPACE);
-            drawListings();
-            confirmSlot = -1;
-            return;
-        }
-
-        long balance = BankStorage.getBalance(serverPlayer.getUUID());
-        if (balance < listing.price) {
-            PrivateMessage(serverPlayer, AH_BUY_NO_MONEY);
-            drawListings();
-            confirmSlot = -1;
-            return;
-        }
-
-        if (!BankStorage.removeBalance(serverPlayer.getUUID(), listing.price)) {
-            PrivateMessage(serverPlayer, AH_WITHDRAW_ERROR);
-            drawListings();
-            confirmSlot = -1;
-            return;
-        }
-
-        BankStorage.addBalance(listing.seller, listing.price);
-
-        ItemStack purchasedCopy = purchased.copy();
-        if (!serverPlayer.getInventory().add(purchasedCopy)) {
-            serverPlayer.drop(purchasedCopy, false);
-        }
-
-        List<AHStorage.AHListing> sellerListings = AHStorage.loadListings(listing.seller);
-        sellerListings.removeIf(l -> l.timestamp == listing.timestamp && l.seller.equals(listing.seller));
-        AHStorage.saveListings(listing.seller, sellerListings);
-
-        listings.remove(confirmSlot);
-
-        PrivateMessage(serverPlayer, String.format(AH_BUY_CONFIRMATION,
-                purchased.getCount(),
-                purchased.getHoverName().getString(),
-                listing.price,
-                listing.sellerName));
-
-        confirmSlot = -1;
+    private void refreshListings() {
+        this.listings = AHStorageHelper.getAllActiveListings();
+        currentPage = 0;
         drawListings();
     }
 
+    private void buyListing(net.minecraft.server.level.ServerPlayer serverPlayer) {
+        inConfirmation = false;
+
+        synchronized (AHStorage.getBuyLock()) {
+
+            if (confirmSlot < 0 || confirmSlot >= listings.size()) {
+                confirmSlot = -1;
+                drawListings();
+                return;
+            }
+
+            AHStorage.AHListing listing = listings.get(confirmSlot);
+            ItemStack purchased = AHStorageHelper.fromListing(listing, serverPlayer.registryAccess());
+
+            if (purchased == null || purchased.isEmpty()) {
+                PrivateMessage(serverPlayer, SHOP_BUY_ERROR);
+                listings.remove(confirmSlot);
+                confirmSlot = -1;
+                drawListings();
+                return;
+            }
+
+            if (InventoryUtil.noInventorySpace(serverPlayer, purchased)) {
+                PrivateMessage(serverPlayer, SHOP_BUY_NO_SPACE);
+                confirmSlot = -1;
+                drawListings();
+                return;
+            }
+
+            long balance = BankStorage.getBalance(serverPlayer.getUUID());
+            if (balance < listing.price) {
+                PrivateMessage(serverPlayer, SHOP_BUY_NO_MONEY);
+                confirmSlot = -1;
+                drawListings();
+                return;
+            }
+
+            if (!BankStorage.removeBalance(serverPlayer.getUUID(), listing.price)) {
+                PrivateMessage(serverPlayer, SHOP_WITHDRAW_ERROR);
+                confirmSlot = -1;
+                drawListings();
+                return;
+            }
+
+            if (!AHStorage.removeListing(listing.seller, listing.timestamp)) {
+                BankStorage.addBalance(serverPlayer.getUUID(), listing.price);
+                PrivateMessage(serverPlayer, SHOP_BUY_ERROR);
+                listings.remove(confirmSlot);
+                confirmSlot = -1;
+                drawListings();
+                return;
+            }
+
+            BankStorage.addBalance(listing.seller, listing.price);
+
+            ItemStack purchasedCopy = purchased.copy();
+            if (!serverPlayer.getInventory().add(purchasedCopy)) {
+                serverPlayer.drop(purchasedCopy, false);
+            }
+
+            listings.remove(confirmSlot);
+
+            PrivateMessage(serverPlayer, String.format(SHOP_BUY_CONFIRMATION,
+                    purchased.getCount(),
+                    purchased.getHoverName().getString(),
+                    listing.price,
+                    listing.sellerName));
+
+            confirmSlot = -1;
+            drawListings();
+        }
+    }
+
     private boolean isConfirmSlot(int slotIndex) {
-        // 3x3 block starting at slot 9 (top-left)
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
                 if (slotIndex == 9 + i * 9 + j) return true;
@@ -191,7 +228,6 @@ public class AHScreenHandler extends AbstractContainerMenu {
     }
 
     private boolean isCancelSlot(int slotIndex) {
-        // 3x3 block starting at slot 15 (top-right)
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
                 if (slotIndex == 15 + i * 9 + j) return true;
@@ -200,18 +236,18 @@ public class AHScreenHandler extends AbstractContainerMenu {
         return false;
     }
 
-    // ---------------- DRAW GUI ----------------
     private void drawListings() {
         for (int i = 0; i < SIZE; i++) inventory.setItem(i, ItemStack.EMPTY);
 
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+        List<AHStorage.AHListing> filtered = getFilteredListings();
         int startIndex = currentPage * ITEMS_PER_PAGE;
 
         for (int i = 0; i < ITEMS_PER_PAGE; i++) {
             int listingIndex = startIndex + i;
-            if (listingIndex >= listings.size()) continue;
+            if (listingIndex >= filtered.size()) continue;
 
-            AHStorage.AHListing listing = listings.get(listingIndex);
+            AHStorage.AHListing listing = filtered.get(listingIndex);
             ItemStack stack = AHStorageHelper.fromListing(listing, player.registryAccess());
             if (stack == null) stack = ItemStack.EMPTY;
 
@@ -231,8 +267,7 @@ public class AHScreenHandler extends AbstractContainerMenu {
             inventory.setItem(i, stack);
         }
 
-        // Navigation buttons
-        int maxPage = (listings.size() - 1) / ITEMS_PER_PAGE;
+        int maxPage = filtered.isEmpty() ? 0 : (filtered.size() - 1) / ITEMS_PER_PAGE;
         if (currentPage > 0) {
             ItemStack prev = new ItemStack(Items.ARROW);
             prev.set(DataComponents.CUSTOM_NAME, Component.literal("Previous Page"));
@@ -243,6 +278,10 @@ public class AHScreenHandler extends AbstractContainerMenu {
             next.set(DataComponents.CUSTOM_NAME, Component.literal("Next Page"));
             inventory.setItem(53, next);
         }
+
+        ItemStack refresh = new ItemStack(Items.EMERALD);
+        refresh.set(DataComponents.CUSTOM_NAME, Component.literal("Refresh"));
+        inventory.setItem(48, refresh);
 
         ItemStack pageInfo = new ItemStack(Items.PAPER);
         pageInfo.set(DataComponents.CUSTOM_NAME,
@@ -281,7 +320,6 @@ public class AHScreenHandler extends AbstractContainerMenu {
         broadcastChanges();
     }
 
-    // ---------------- SUPPORT ----------------
     @Override
     public boolean stillValid(@NonNull Player player) {
         return true;
@@ -292,7 +330,6 @@ public class AHScreenHandler extends AbstractContainerMenu {
         return ItemStack.EMPTY;
     }
 
-    // ---------------- CUSTOM SLOT ----------------
     private abstract static class ClickableSlot extends Slot {
 
         public ClickableSlot(Container container, int index, int x, int y) {
